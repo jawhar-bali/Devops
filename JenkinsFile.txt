@@ -1,0 +1,97 @@
+pipeline {
+        agent any
+        stages {
+            stage('Chekout GIT'){
+                steps {
+                    echo 'Pulling...'
+                        git branch: 'JawharBali-5TWIN4-G3' ,
+                        url : 'https://github.com/Microservice-crew/5TWIN4-G3-projet2.git',
+                        credentialsId: 'jawharbaly'
+                       
+                }
+            }
+            stage('MVN CLEAN'){
+                steps{
+                    sh 'mvn clean';
+                }
+            }
+            stage('MVN COMPILE'){
+                steps{
+                    sh 'mvn compile';
+                }
+            }
+               stage('MVN TEST JUNIT') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+            stage("Build") {
+               steps {
+                sh 'mvn install -DskipTests=true'
+                }
+            }
+              stage('Creation livrable') {
+            steps {
+                sh 'mvn package -DskipTests'
+            }
+        }
+        stage('Generate Jacoco Report') {
+    steps {
+        junit '**/target/surefire-reports/TEST-*.xml'
+        sh 'mvn jacoco:report'
+    }
+    post {
+        always {
+            publishHTML(
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'target/site/jacoco',
+                reportFiles: 'index.html',
+                reportName: 'JaCoCo Coverage Report'
+            )
+        }
+    }
+}
+       
+              stage('MVN SONARQUBE') {
+            steps {
+                sh 'mvn sonar:sonar -Dsonar.login=admin -Dsonar.password=sonar -Dmaven.test.skip=true'
+            }
+        }
+            stage('MVN NEXUS') {
+            steps {
+                sh 'mvn deploy -Dmaven.test.skip=true'
+            }
+        }
+        stage('Docker Image') {
+            steps {
+                sh 'docker build -t jawharbali/jawharbali-g3-5twin4 .'
+            }
+        }
+       stage('Push images to Dockerhub') {
+              steps{
+                       script{    
+                       sh 'docker login -u jawharbali -p Jawhar123456789'
+                       sh 'docker push jawharbali/jawharbali-g3-5twin4:latest'
+                       }
+                   }
+               }
+        stage('Docker Compose') {
+           steps{
+               sh 'docker compose up -d'
+           }
+        }    
+       stage('Email notifications') {
+            steps {
+                script {
+                    emailext body: 'Bonjour, Votre build a été effectué avec succès !',
+                        subject: 'Build succès',
+                        to: 'jawhar.bali@esprit.tn'
+                }
+            }
+        }
+
+}
+}
+
